@@ -1,10 +1,16 @@
 #include "aes.h"
-#include <stdexcept>
-#include <cstring>
+#include <stdexcept> // std::invalid_argument
+#include <cstring>   // std::memcpy
 
 namespace aes {
 
-// -------------------- S-Box / Inv S-Box --------------------
+
+
+// 
+// [A] CONSTANTS AES: S-Box, Inv S-Box, RCON
+// 
+
+// SBOX is byte replacement table
 static constexpr uint8_t SBOX[256] = {
   0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
   0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,
@@ -24,6 +30,7 @@ static constexpr uint8_t SBOX[256] = {
   0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16
 };
 
+// INV_SBOX is a  reverse table for decryption (return the byte back).
 static constexpr uint8_t INV_SBOX[256] = {
   0x52,0x09,0x6a,0xd5,0x30,0x36,0xa5,0x38,0xbf,0x40,0xa3,0x9e,0x81,0xf3,0xd7,0xfb,
   0x7c,0xe3,0x39,0x82,0x9b,0x2f,0xff,0x87,0x34,0x8e,0x43,0x44,0xc4,0xde,0xe9,0xcb,
@@ -43,30 +50,47 @@ static constexpr uint8_t INV_SBOX[256] = {
   0x17,0x2b,0x04,0x7e,0xba,0x77,0xd6,0x26,0xe1,0x69,0x14,0x63,0x55,0x21,0x0c,0x7d
 };
 
-static constexpr uint32_t RCON[11] = {
-    0x00000000,
-    0x01000000,0x02000000,0x04000000,0x08000000,0x10000000,
-    0x20000000,0x40000000,0x80000000,0x1B000000,0x36000000
+// RCON is needed in Key Expansion.
+// It breaks the repeatability of the keys and makes them different for different rounds.
+// Rcon нужны только первые 10 значений для AES-128 (и хватит для 192/256 тоже)
+static constexpr uint8_t RCON[10] = {
+    0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1B,0x36
 };
 
-// ====================== 2) GF(2^8) математика ======================
-// xtime(a) = умножение на 2 в поле GF(2^8)
-// gf_mul(a,b) = умножение двух байт в GF(2^8)
-static inline uint8_t xtime(uint8_t a) {
-    return (uint8_t)((a << 1) ^ ((a & 0x80) ? 0x1b : 0x00));
+//
+// [B] State representation
+//
+// State = 16 bytes. Храним как 4x4 matrix в column-major:
+//
+// index = row + 4*col
+// col0: state[0..3], col1: state[4..7], col2: state[8..11], col3: state[12..15]
+//
+// Это важно для ShiftRows/MixColumns.
+
+
+//
+// [C] GF(2^8) multiplication (needed for MixColumns)
+//
+// xtime(x) = x * 2 in GF(2^8)
+static inline uint8_t xtime(uint8_t x) {
+    return (uint8_t)((x << 1) ^ ((x & 0x80) ? 0x1B : 0x00));
 }
-static inline uint8_t gf_mul(uint8_t a, uint8_t b) {
-    uint8_t res = 0;
-    while (b) {
-        if (b & 1) res ^= a;
+
+// gfMul(a,b) = a*b in GF(2^8)
+static inline uint8_t gfMul(uint8_t a, uint8_t b) {
+    uint8_t r = 0;
+    while (b) { // ПРОВЕРКА КАЖДОГО БИТА В b
+        if (b & 1) r ^= a;   // "add" in GF = XOR
         a = xtime(a);
         b >>= 1;
     }
-    return res;
+    return r;
 }
 
-// ====================== 3) Операции раунда ======================
-// state — 16 байт (4x4) в column-major: state[r + 4*c]
+//
+// [D] Round operations: AddRoundKey, SubBytes, ShiftRows, MixColumns
+//
+
 static inline void addRoundKey(uint8_t state[16], const uint8_t* roundKey16) {
     for (int i = 0; i < 16; i++) state[i] ^= roundKey16[i];
 }
@@ -78,26 +102,37 @@ static inline void invSubBytes(uint8_t state[16]) {
     for (int i = 0; i < 16; i++) state[i] = INV_SBOX[state[i]];
 }
 
+// ShiftRows: сдвиги строк (row0 no shift, row1 left 1, row2 left 2, row3 left 3)
 static inline void shiftRows(uint8_t s[16]) {
     uint8_t t[16];
     std::memcpy(t, s, 16);
 
-    s[0]=t[0];  s[4]=t[4];  s[8]=t[8];   s[12]=t[12];
-    s[1]=t[5];  s[5]=t[9];  s[9]=t[13];  s[13]=t[1];
-    s[2]=t[10]; s[6]=t[14]; s[10]=t[2];  s[14]=t[6];
-    s[3]=t[15]; s[7]=t[3];  s[11]=t[7];  s[15]=t[11];
+    // row 0 (no shift)
+    s[0]  = t[0];   s[4]  = t[4];   s[8]  = t[8];   s[12] = t[12];
+    // row 1 (shift left 1)
+    s[1]  = t[5];   s[5]  = t[9];   s[9]  = t[13];  s[13] = t[1];
+    // row 2 (shift left 2)
+    s[2]  = t[10];  s[6]  = t[14];  s[10] = t[2];   s[14] = t[6];
+    // row 3 (shift left 3)
+    s[3]  = t[15];  s[7]  = t[3];   s[11] = t[7];   s[15] = t[11];
 }
 
+// ОБРАТНАЯ ФУНКЦИЯ
 static inline void invShiftRows(uint8_t s[16]) {
     uint8_t t[16];
     std::memcpy(t, s, 16);
 
-    s[0]=t[0];  s[4]=t[4];  s[8]=t[8];   s[12]=t[12];
-    s[1]=t[13]; s[5]=t[1];  s[9]=t[5];   s[13]=t[9];
-    s[2]=t[10]; s[6]=t[14]; s[10]=t[2];  s[14]=t[6];
-    s[3]=t[7];  s[7]=t[11]; s[11]=t[15]; s[15]=t[3];
+    // row 0 (no shift)
+    s[0]  = t[0];   s[4]  = t[4];   s[8]  = t[8];   s[12] = t[12];
+    // row 1 (shift right 1)
+    s[1]  = t[13];  s[5]  = t[1];   s[9]  = t[5];   s[13] = t[9];
+    // row 2 (shift right 2)  (same as left 2 for 4 elements)
+    s[2]  = t[10];  s[6]  = t[14];  s[10] = t[2];   s[14] = t[6];
+    // row 3 (shift right 3)
+    s[3]  = t[7];   s[7]  = t[11];  s[11] = t[15];  s[15] = t[3];
 }
 
+// MixColumns: обрабатываем каждую колонку отдельно
 static inline void mixColumns(uint8_t s[16]) {
     for (int c = 0; c < 4; c++) {
         uint8_t a0 = s[0 + 4*c];
@@ -105,13 +140,14 @@ static inline void mixColumns(uint8_t s[16]) {
         uint8_t a2 = s[2 + 4*c];
         uint8_t a3 = s[3 + 4*c];
 
-        s[0 + 4*c] = (uint8_t)(gf_mul(a0,2) ^ gf_mul(a1,3) ^ a2 ^ a3);
-        s[1 + 4*c] = (uint8_t)(a0 ^ gf_mul(a1,2) ^ gf_mul(a2,3) ^ a3);
-        s[2 + 4*c] = (uint8_t)(a0 ^ a1 ^ gf_mul(a2,2) ^ gf_mul(a3,3));
-        s[3 + 4*c] = (uint8_t)(gf_mul(a0,3) ^ a1 ^ a2 ^ gf_mul(a3,2));
+        s[0 + 4*c] = (uint8_t)(gfMul(a0,2) ^ gfMul(a1,3) ^ a2 ^ a3);
+        s[1 + 4*c] = (uint8_t)(a0 ^ gfMul(a1,2) ^ gfMul(a2,3) ^ a3);
+        s[2 + 4*c] = (uint8_t)(a0 ^ a1 ^ gfMul(a2,2) ^ gfMul(a3,3));
+        s[3 + 4*c] = (uint8_t)(gfMul(a0,3) ^ a1 ^ a2 ^ gfMul(a3,2));
     }
 }
 
+// ОБРАТНАЯ ФУНКЦИЯ
 static inline void invMixColumns(uint8_t s[16]) {
     for (int c = 0; c < 4; c++) {
         uint8_t a0 = s[0 + 4*c];
@@ -119,115 +155,134 @@ static inline void invMixColumns(uint8_t s[16]) {
         uint8_t a2 = s[2 + 4*c];
         uint8_t a3 = s[3 + 4*c];
 
-        s[0 + 4*c] = (uint8_t)(gf_mul(a0,0x0e) ^ gf_mul(a1,0x0b) ^ gf_mul(a2,0x0d) ^ gf_mul(a3,0x09));
-        s[1 + 4*c] = (uint8_t)(gf_mul(a0,0x09) ^ gf_mul(a1,0x0e) ^ gf_mul(a2,0x0b) ^ gf_mul(a3,0x0d));
-        s[2 + 4*c] = (uint8_t)(gf_mul(a0,0x0d) ^ gf_mul(a1,0x09) ^ gf_mul(a2,0x0e) ^ gf_mul(a3,0x0b));
-        s[3 + 4*c] = (uint8_t)(gf_mul(a0,0x0b) ^ gf_mul(a1,0x0d) ^ gf_mul(a2,0x09) ^ gf_mul(a3,0x0e));
+        s[0 + 4*c] = (uint8_t)(gfMul(a0,0x0e) ^ gfMul(a1,0x0b) ^ gfMul(a2,0x0d) ^ gfMul(a3,0x09));
+        s[1 + 4*c] = (uint8_t)(gfMul(a0,0x09) ^ gfMul(a1,0x0e) ^ gfMul(a2,0x0b) ^ gfMul(a3,0x0d));
+        s[2 + 4*c] = (uint8_t)(gfMul(a0,0x0d) ^ gfMul(a1,0x09) ^ gfMul(a2,0x0e) ^ gfMul(a3,0x0b));
+        s[3 + 4*c] = (uint8_t)(gfMul(a0,0x0b) ^ gfMul(a1,0x0d) ^ gfMul(a2,0x09) ^ gfMul(a3,0x0e));
     }
 }
 
-// ====================== 4) Key Expansion ======================
-// Helpers для 32-bit слова
-static inline uint32_t rotWord(uint32_t w) {
-    return (w << 8) | (w >> 24);
-}
-static inline uint32_t subWord(uint32_t w) {
-    return (uint32_t(SBOX[(w >> 24) & 0xff]) << 24) ^
-           (uint32_t(SBOX[(w >> 16) & 0xff]) << 16) ^
-           (uint32_t(SBOX[(w >>  8) & 0xff]) <<  8) ^
-           (uint32_t(SBOX[(w >>  0) & 0xff]) <<  0);
-}
+//
+// [E] Key Expansion
+// 
+//
+// AES key sizes:
+//  16 bytes (AES-128) -> Nk=4 words, rounds=10, roundKeys=176 bytes
+//  24 bytes (AES-192) -> Nk=6 words, rounds=12, roundKeys=208 bytes
+//  32 bytes (AES-256) -> Nk=8 words, rounds=14, roundKeys=240 bytes
+//
+//
 
-AESKeySchedule expandKey(const uint8_t* key, size_t keyBytes) {
-    if (keyBytes != 16 && keyBytes != 24 && keyBytes != 32)
+KeySchedule expandKey(const uint8_t* key, size_t keyBytes) {
+    if (keyBytes != 16 && keyBytes != 24 && keyBytes != 32) {
         throw std::invalid_argument("AES key must be 16/24/32 bytes");
-
-    const int Nk = int(keyBytes / 4);   // words in key
-    const int Nr = Nk + 6;              // rounds: 10/12/14
-    const int Nb = 4;                   // always 4 for AES
-    const int words = Nb * (Nr + 1);    // total words in expanded key
-
-    std::vector<uint32_t> w(words);
-
-    // копируем ключ в первые Nk слов
-    for (int i = 0; i < Nk; i++) {
-        w[i] = (uint32_t(key[4*i+0]) << 24) ^
-               (uint32_t(key[4*i+1]) << 16) ^
-               (uint32_t(key[4*i+2]) <<  8) ^
-               (uint32_t(key[4*i+3]) <<  0);
     }
 
-    // генерируем остальные слова
-    for (int i = Nk; i < words; i++) {
-        uint32_t temp = w[i - 1];
+    const int Nk = int(keyBytes / 4);      // how many 4-byte "words" in the key: 4/6/8
+    const int rounds = Nk + 6;             // 10/12/14
+    const int totalRoundKeyBytes = 16 * (rounds + 1);
 
-        if (i % Nk == 0) {
-            temp = subWord(rotWord(temp)) ^ RCON[i / Nk];
-        } else if (Nk > 6 && (i % Nk == 4)) {
-            temp = subWord(temp);
+    KeySchedule ks;
+    ks.rounds = rounds;
+    ks.roundKeys.resize(totalRoundKeyBytes);
+
+    // 1) Copy the original key as the beginning of roundKeys
+    for (size_t i = 0; i < keyBytes; i++) {
+        ks.roundKeys[i] = key[i];
+    }
+
+    // 2) Generate the remaining bytes
+    int bytesGenerated = (int)keyBytes;
+    int rconIndex = 0; // points into RCON[0..9]
+
+    uint8_t temp[4];
+
+    while (bytesGenerated < totalRoundKeyBytes) {
+        // temp = last 4 bytes we have generated
+        for (int i = 0; i < 4; i++) {
+            temp[i] = ks.roundKeys[bytesGenerated - 4 + i];
         }
 
-        w[i] = w[i - Nk] ^ temp;
-    }
+        // If we are at the start of a "key-size" chunk:
+        // apply RotWord + SubWord + Rcon
+        if (bytesGenerated % (int)keyBytes == 0) {
+            // RotWord: [a0 a1 a2 a3] -> [a1 a2 a3 a0]
+            uint8_t t = temp[0];
+            temp[0] = temp[1];
+            temp[1] = temp[2];
+            temp[2] = temp[3];
+            temp[3] = t;
 
-    AESKeySchedule ks;
-    ks.Nr = Nr;
-    ks.rk.resize(16 * (Nr + 1));
+            // SubWord: apply SBOX to each byte
+            for (int i = 0; i < 4; i++) temp[i] = SBOX[temp[i]];
 
-    // упаковываем слова обратно в байты
-    for (int i = 0; i < words; i++) {
-        ks.rk[4*i+0] = (w[i] >> 24) & 0xff;
-        ks.rk[4*i+1] = (w[i] >> 16) & 0xff;
-        ks.rk[4*i+2] = (w[i] >>  8) & 0xff;
-        ks.rk[4*i+3] = (w[i] >>  0) & 0xff;
+            // Rcon: only the first byte gets XOR with Rcon
+            temp[0] ^= RCON[rconIndex++];
+        }
+        // Special case for AES-256:
+        // every 16 bytes inside the 32-byte key schedule, do SubWord
+        else if (keyBytes == 32 && (bytesGenerated % 32 == 16)) {
+            for (int i = 0; i < 4; i++) temp[i] = SBOX[temp[i]];
+        }
+
+        // new 4 bytes = (bytes keyBytes back) XOR temp
+        for (int i = 0; i < 4; i++) {
+            ks.roundKeys[bytesGenerated] = ks.roundKeys[bytesGenerated - (int)keyBytes] ^ temp[i];
+            bytesGenerated++;
+        }
     }
 
     return ks;
 }
 
-// ====================== 5) Encrypt / Decrypt block ======================
-void encryptBlock(const uint8_t in[16], uint8_t out[16], const AESKeySchedule& ks) {
-    uint8_t s[16];
-    std::memcpy(s, in, 16);
+// 
+// [F] Encrypt / Decrypt one 16-byte block
+//
 
-    // Round 0
-    addRoundKey(s, ks.rk.data());
+void encryptBlock(const uint8_t plaintext[16], uint8_t ciphertext[16], const KeySchedule& ks) {
+    uint8_t state[16];
+    std::memcpy(state, plaintext, 16);
 
-    // Rounds 1..Nr-1
-    for (int round = 1; round < ks.Nr; round++) {
-        subBytes(s);
-        shiftRows(s);
-        mixColumns(s);
-        addRoundKey(s, ks.rk.data() + 16*round);
+    // Round 0: only AddRoundKey
+    addRoundKey(state, ks.roundKeys.data());
+
+    // Rounds 1..rounds-1
+    for (int round = 1; round < ks.rounds; round++) {
+        subBytes(state);
+        shiftRows(state);
+        mixColumns(state);
+        addRoundKey(state, ks.roundKeys.data() + 16*round);
     }
 
-    // Final round (без MixColumns)
-    subBytes(s);
-    shiftRows(s);
-    addRoundKey(s, ks.rk.data() + 16*ks.Nr);
+    // Final round: no MixColumns
+    subBytes(state);
+    shiftRows(state);
+    addRoundKey(state, ks.roundKeys.data() + 16*ks.rounds);
 
-    std::memcpy(out, s, 16);
+    std::memcpy(ciphertext, state, 16);
 }
 
-void decryptBlock(const uint8_t in[16], uint8_t out[16], const AESKeySchedule& ks) {
-    uint8_t s[16];
-    std::memcpy(s, in, 16);
+void decryptBlock(const uint8_t ciphertext[16], uint8_t plaintext[16], const KeySchedule& ks) {
+    uint8_t state[16];
+    std::memcpy(state, ciphertext, 16);
 
-    // start with last round key
-    addRoundKey(s, ks.rk.data() + 16*ks.Nr);
+    // Start from the last round key
+    addRoundKey(state, ks.roundKeys.data() + 16*ks.rounds);
 
-    for (int round = ks.Nr - 1; round >= 1; round--) {
-        invShiftRows(s);
-        invSubBytes(s);
-        addRoundKey(s, ks.rk.data() + 16*round);
-        invMixColumns(s);
+    // Rounds rounds-1..1
+    for (int round = ks.rounds - 1; round >= 1; round--) {
+        invShiftRows(state);
+        invSubBytes(state);
+        addRoundKey(state, ks.roundKeys.data() + 16*round);
+        invMixColumns(state);
     }
 
-    invShiftRows(s);
-    invSubBytes(s);
-    addRoundKey(s, ks.rk.data());
+    // Final inverse step
+    invShiftRows(state);
+    invSubBytes(state);
+    addRoundKey(state, ks.roundKeys.data());
 
-    std::memcpy(out, s, 16);
+    std::memcpy(plaintext, state, 16);
 }
 
 } // namespace aes
