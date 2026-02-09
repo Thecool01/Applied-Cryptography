@@ -98,7 +98,7 @@ void showProgressBar(const std::string& task) {
     for (int i = 0; i <= 20; ++i) {
         std::cout << "#";
         std::cout.flush();
-        // std::this_thread::sleep_for(std::chrono::milliseconds(20)); // optional demo delay
+        std::this_thread::sleep_for(std::chrono::milliseconds(20)); // optional demo delay
     }
     std::cout << "] " << GREEN << "Done!" << RESET << "\n";
 }
