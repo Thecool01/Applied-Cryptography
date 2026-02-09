@@ -1,11 +1,5 @@
 // test.cpp — SIS1 Test Suite (with NIST AES vectors + edge cases + GCM tamper tests)
-//
-// Build example (Linux/macOS):
-//   g++ -std=c++17 -O2 -Wall -Wextra -pedantic aes.cpp main.cpp -o app      (your CLI)
-//   g++ -std=c++17 -O2 -Wall -Wextra -pedantic aes.cpp test.cpp -o test
-//
-// Build example (Windows / MinGW):
-//   g++ -std=c++17 -O2 -Wall -Wextra aes.cpp test.cpp -o test.exe
+//  g++ -std=c++17 -O2 -Wall -Wextra aes.cpp test.cpp -o test.exe
 //
 // NOTE: test.cpp depends on: aes.cpp, aes.h, AESModes.h, CustomRNG.h, Padding.h, GCM_Math.h
 
