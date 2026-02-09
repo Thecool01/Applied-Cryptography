@@ -28,6 +28,7 @@ const std::string BOLD    = "\033[1m";
 
 void printHeader() {
     std::cout << CYAN << BOLD;
+    // R"(...)" is a Raw String Literal. It ignores escape characters like backslashes.
     std::cout << R"(
    ================================================================
       _    _____ ____     _____                  _        
@@ -36,9 +37,10 @@ void printHeader() {
    / ___ \| |___ ___) | | |___| |  | |_| | |_) | || (_) |
   /_/   \_\_____|____/   \_____|_|   \__, | .__/ \__\___/ 
                                      |___/|_|             
-
+            Student Independent Study 1: AES Implementation
    ================================================================
-)" << RESET << "\n";
+)" << "\n";
+    std::cout << RESET;
 }
 
 void printHex(const std::vector<uint8_t>& data) {
