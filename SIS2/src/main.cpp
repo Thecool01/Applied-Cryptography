@@ -5,6 +5,9 @@
 #include "sha-256.h"
 #include "hmac.h"
 #include "pbkdf2.h"
+#include "hkdf.h"
+#include "password_manager.h"
+#include "file_integrity.h"
 
 int main() {
 
@@ -61,7 +64,6 @@ int main() {
 
     std::cout << "Result:   " << hmacResult << std::endl;
     std::cout << "Expected: " << hmacExpected << std::endl;
-
     std::cout << (hmacResult == hmacExpected ? "PASS" : "FAIL") << std::endl;
 
 
@@ -85,15 +87,47 @@ int main() {
 
     std::cout << "Result:   " << pbkdf2Result << std::endl;
     std::cout << "Expected: " << pbkdf2Expected << std::endl;
-
     std::cout << (pbkdf2Result == pbkdf2Expected ? "PASS" : "FAIL") << std::endl;
 
 
     // ==============================
-    // USER MODE
+    // HKDF TEST
     // ==============================
 
-    std::cout << "\n===== USER HASH MODE =====" << std::endl;
+    // Здесь не обязателен fixed expected value, если у тебя нет
+    // официального test vector под конкретные ikm/salt/info.
+    // Но мы можем проверить, что:
+    // 1) длина результата правильная
+    // 2) функция работает стабильно
+    // 3) одинаковые входы дают одинаковый результат
+
+    std::cout << "\n===== HKDF TEST =====" << std::endl;
+
+    std::string ikm = "input key material";
+    std::string salt = "my salt";
+    std::string info = "context info";
+
+    std::vector<uint8_t> hkdfKey1 = HKDF::deriveKey(ikm, salt, info, 32);
+    std::vector<uint8_t> hkdfKey2 = HKDF::deriveKey(ikm, salt, info, 32);
+
+    std::string hkdfResult1 = SHA256::bytesToHex(hkdfKey1);
+    std::string hkdfResult2 = SHA256::bytesToHex(hkdfKey2);
+
+    std::cout << "Derived key 1: " << hkdfResult1 << std::endl;
+    std::cout << "Derived key 2: " << hkdfResult2 << std::endl;
+
+    bool sameOutput = (hkdfResult1 == hkdfResult2);
+    bool correctLength = (hkdfKey1.size() == 32);
+
+    std::cout << "Same output check: " << (sameOutput ? "PASS" : "FAIL") << std::endl;
+    std::cout << "Length check:      " << (correctLength ? "PASS" : "FAIL") << std::endl;
+
+
+    // ==============================
+    // USER SHA-256 MODE
+    // ==============================
+
+    std::cout << "\n===== USER SHA-256 MODE =====" << std::endl;
 
     std::string userInput;
 
@@ -104,5 +138,71 @@ int main() {
 
     std::cout << "SHA-256: " << userHash << std::endl;
 
+
+    // ==============================
+    // USER HKDF MODE
+    // ==============================
+
+    // Здесь пользователь может сам ввести IKM, salt, info
+    // и желаемую длину выходного ключа
+
+    std::cout << "\n===== USER HKDF MODE =====" << std::endl;
+
+    std::string userIKM;
+    std::string userSalt;
+    std::string userInfo;
+    size_t userLength;
+
+    std::cout << "Enter IKM: ";
+    std::getline(std::cin, userIKM);
+
+    std::cout << "Enter salt: ";
+    std::getline(std::cin, userSalt);
+
+    std::cout << "Enter info: ";
+    std::getline(std::cin, userInfo);
+
+    std::cout << "Enter output length in bytes: ";
+    std::cin >> userLength;
+
+    std::vector<uint8_t> userHKDF = HKDF::deriveKey(userIKM, userSalt, userInfo, userLength);
+
+    std::cout << "HKDF output: " << SHA256::bytesToHex(userHKDF) << std::endl;
+
+
+    // ==============================
+    // PASSWORD MANAGER TEST
+    // ==============================
+    
+    std::cout << "\n===== PASSWORD MANAGER TEST =====" << std::endl;
+    
+    StoredPassword stored = storePassword("mypassword");
+    
+    bool ok1 = verifyPassword("mypassword", stored);
+    bool ok2 = verifyPassword("wrongpassword", stored);
+    
+    std::cout << "Correct password: "
+              << (ok1 ? "PASS" : "FAIL") << std::endl;
+    
+    std::cout << "Wrong password: "
+              << (!ok2 ? "PASS" : "FAIL") << std::endl;
+
+
     return 0;
+
+
+    // ==============================
+    // FILE INTEGRITY TEST
+    // ==============================
+
+    std::cout << "\n===== FILE INTEGRITY TEST =====" << std::endl;
+
+    std::vector<uint8_t> fileHash = sha256File("main.cpp");
+
+    bool fileOk = verifyFile("main.cpp", fileHash);
+
+    std::cout << "File integrity: "
+             << (fileOk ? "PASS" : "FAIL")
+             << std::endl;
+
 }
