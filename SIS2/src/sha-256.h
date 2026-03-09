@@ -25,6 +25,7 @@ public:
     // можно сразу вызвать SHA256::hashHex("abc")
     static std::vector<uint8_t> hash(const std::string& data);
     static std::string hashHex(const std::string& data);
+    static std::string bytesToHex(const std::vector<uint8_t>& bytes);
 
 private:
     // Здесь храним всё входное сообщение
@@ -58,7 +59,6 @@ private:
     static uint32_t smallSigma0(uint32_t x);
     static uint32_t smallSigma1(uint32_t x);
 
-    static std::string bytesToHex(const std::vector<uint8_t>& bytes);
 };
 
 #endif
