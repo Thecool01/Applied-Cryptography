@@ -6,13 +6,12 @@
 // Генерация случайной соли
 // ------------------------------------------------------------
 std::vector<uint8_t> generateSalt(size_t size) {
-
     std::vector<uint8_t> salt(size);
 
-    std::random_device rd;
+    static std::random_device rd;
 
     for (size_t i = 0; i < size; i++) {
-        salt[i] = rd() % 256;
+        salt[i] = static_cast<uint8_t>(rd());
     }
 
     return salt;
