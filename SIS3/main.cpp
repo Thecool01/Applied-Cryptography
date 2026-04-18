@@ -1,5 +1,6 @@
 #include <iostream>
 #include "BigIntMath.h"
+#include "RSACore.h"
 #include "PrimeGenerator.h" // Обязательно подключаем новый файл
 
 using namespace std;
@@ -26,6 +27,39 @@ int main() {
     cout << "Generated Prime (p): " << endl;
     cout << p << endl;
     cout << "-------------------------------" << endl;
+
+
+    cout << "--- RSA Key Generation ---" << endl;
+    PublicKey pubKey;
+    PrivateKey privKey;
+    
+    // Генерируем небольшие ключи для быстрого теста (например, 512 бит)
+    RSACore::generateKeys(512, pubKey, privKey);
+    
+    cout << "\n--- Testing Encryption & Decryption ---" << endl;
+    
+    // Наше "сообщение" (пока это просто число, так как мы не добавили паддинг)
+    cpp_int originalMessage = 123456789;
+    cout << "Original Message: " << originalMessage << endl;
+
+    // 1. Шифруем
+    cpp_int ciphertext = RSACore::encryptTextbook(originalMessage, pubKey);
+    cout << "Ciphertext: \n" << ciphertext << "\n" << endl;
+
+    // 2. Дешифруем обычным (медленным) способом
+    cpp_int decryptedTextbook = RSACore::decryptTextbook(ciphertext, privKey);
+    cout << "Decrypted (Textbook): " << decryptedTextbook << endl;
+
+    // 3. Дешифруем БОНУСНЫМ (быстрым) способом
+    cpp_int decryptedCRT = RSACore::decryptCRT(ciphertext, privKey);
+    cout << "Decrypted (CRT Method): " << decryptedCRT << endl;
+
+    if (originalMessage == decryptedTextbook && originalMessage == decryptedCRT) {
+        cout << "\nSUCCESS: Both decryption methods work perfectly!" << endl;
+    } else {
+        cout << "\nERROR: Decryption failed!" << endl;
+    }
+
 
     return 0;
 }
