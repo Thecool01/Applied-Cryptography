@@ -7,12 +7,14 @@
 // ------------------------------------------------------------
 std::vector<uint8_t> sha256File(const std::string& filename) {
 
+    // открываем файл для чтения
     std::ifstream file(filename, std::ios::binary);
 
     SHA256 sha;
 
     char buffer[4096];
 
+    // читаем файл по частям
     while (file.good()) {
 
         file.read(buffer, sizeof(buffer));
@@ -25,8 +27,10 @@ std::vector<uint8_t> sha256File(const std::string& filename) {
         sha.update(chunk);
     }
 
+    // возвращаем hash файла
     return sha.digest();
 }
+
 
 // ------------------------------------------------------------
 // проверка целостности файла

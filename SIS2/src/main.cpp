@@ -52,7 +52,7 @@ void printLogo() {
     typeText("========================================\n", 2);
     typeText("         SIS2 CRYPTOGRAPHY TOOL         \n", 2);
     typeText("========================================\n", 2);
-    typeText("   SHA-256 | HMAC | PBKDF2 | HKDF\n", 2);
+    typeText("SHA-256 | HMAC | PBKDF2 | HKDF | SHA-512\n", 2);
     typeText("========================================\n\n", 2);
 
     pauseMs(400);

@@ -2,6 +2,7 @@
 #include <sstream>
 #include <iomanip>
 
+// g++ main.cpp sha-256.cpp sha-512.cpp hmac.cpp pbkdf2.cpp hkdf.cpp password_manager.cpp file_integrity.cpp -o sis2
 // ------------------------------------------------------------
 // Константы K
 // Это фиксированные 32-битные значения, которые используются
