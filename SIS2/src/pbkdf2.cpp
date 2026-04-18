@@ -26,7 +26,7 @@ static std::vector<uint8_t> xorVectors(
 
 std::vector<uint8_t> PBKDF2::deriveKey(
     const std::string& password,
-    const std::string& salt,
+    const std::string& salt,Z
     int iterations,
     size_t keyLength
 ) {
