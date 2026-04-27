@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "Build RSA Project",
+            "command": "g++", 
+            "args": [
+                "-g",
+                "-I", 
+                "C:\\local\\boost_1_90_0",
+                "*.cpp",
+                "-o",
+                "main.exe"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Компиляция всех .cpp файлов"
+        }
+    ]
+}
