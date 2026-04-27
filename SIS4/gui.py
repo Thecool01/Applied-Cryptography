@@ -17,6 +17,26 @@ POLARIZATION_SYMBOLS = {
 }
 
 
+# Цветовая тема GUI
+COLORS = {
+    "bg": "#0B1020",
+    "panel": "#111827",
+    "panel_2": "#020617",
+    "text": "#E5E7EB",
+    "muted": "#9CA3AF",
+    "accent": "#38BDF8",
+    "accent_2": "#22D3EE",
+    "success": "#22C55E",
+    "danger": "#EF4444",
+    "warning": "#F59E0B",
+    "photon": "#FACC15",
+    "alice": "#1D4ED8",
+    "eve": "#7F1D1D",
+    "bob": "#166534",
+    "border": "#334155",
+}
+
+
 class QKDApp:
     """
     GUI приложение для демонстрации QKD протоколов:
@@ -29,12 +49,14 @@ class QKDApp:
     - Auto Play / Pause
     - Key evolution visualization
     - Real-time statistics display
+    - Dark modern theme
     """
 
     def __init__(self, root):
         self.root = root
         self.root.title("SIS4 QKD Simulator: BB84 / E91")
         self.root.geometry("1250x780")
+        self.root.configure(bg=COLORS["bg"])
 
         self.current_result = None
         self.step_index = 0
@@ -42,21 +64,134 @@ class QKDApp:
         self.auto_play_active = False
         self.animation_speed_ms = 900
 
+        self.setup_dark_theme()
         self.create_layout()
 
-    def create_layout(self):
-        """Создаёт основной интерфейс."""
+    def setup_dark_theme(self):
+        """
+        Настраивает тёмную тему для Tkinter/ttk элементов.
+        """
 
-        main_frame = ttk.Frame(self.root, padding=10)
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "TFrame",
+            background=COLORS["bg"]
+        )
+
+        style.configure(
+            "TLabelframe",
+            background=COLORS["panel"],
+            foreground=COLORS["accent"],
+            bordercolor=COLORS["border"],
+            relief="solid"
+        )
+
+        style.configure(
+            "TLabelframe.Label",
+            background=COLORS["panel"],
+            foreground=COLORS["accent"],
+            font=("Segoe UI", 10, "bold")
+        )
+
+        style.configure(
+            "TLabel",
+            background=COLORS["panel"],
+            foreground=COLORS["text"],
+            font=("Segoe UI", 9)
+        )
+
+        style.configure(
+            "TButton",
+            background=COLORS["accent"],
+            foreground="#020617",
+            font=("Segoe UI", 9, "bold"),
+            borderwidth=0,
+            padding=6
+        )
+
+        style.map(
+            "TButton",
+            background=[
+                ("active", COLORS["accent_2"]),
+                ("pressed", "#0891B2")
+            ],
+            foreground=[
+                ("active", "#020617")
+            ]
+        )
+
+        style.configure(
+            "TEntry",
+            fieldbackground=COLORS["panel_2"],
+            background=COLORS["panel_2"],
+            foreground=COLORS["text"],
+            insertcolor=COLORS["text"],
+            bordercolor=COLORS["border"]
+        )
+
+        style.configure(
+            "TCombobox",
+            fieldbackground=COLORS["panel_2"],
+            background=COLORS["panel_2"],
+            foreground=COLORS["text"],
+            arrowcolor=COLORS["accent"],
+            bordercolor=COLORS["border"]
+        )
+
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", COLORS["panel_2"])],
+            foreground=[("readonly", COLORS["text"])],
+            selectbackground=[("readonly", COLORS["panel_2"])],
+            selectforeground=[("readonly", COLORS["text"])]
+        )
+
+        style.configure(
+            "TCheckbutton",
+            background=COLORS["panel"],
+            foreground=COLORS["text"],
+            font=("Segoe UI", 9)
+        )
+
+        style.map(
+            "TCheckbutton",
+            background=[
+                ("active", COLORS["panel"])
+            ],
+            foreground=[
+                ("active", COLORS["accent"])
+            ]
+        )
+
+    def create_layout(self):
+        """
+        Создаёт основной интерфейс.
+        """
+
+        main_frame = ttk.Frame(self.root, padding=12)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.left_frame = ttk.LabelFrame(main_frame, text="Configuration Panel", padding=10)
+        self.left_frame = ttk.LabelFrame(
+            main_frame,
+            text="Configuration Panel",
+            padding=10
+        )
         self.left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        self.center_frame = ttk.LabelFrame(main_frame, text="Visualization Panel", padding=10)
+        self.center_frame = ttk.LabelFrame(
+            main_frame,
+            text="Visualization Panel",
+            padding=10
+        )
         self.center_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
-        self.right_frame = ttk.LabelFrame(main_frame, text="Real-time Statistics", padding=10)
+        self.right_frame = ttk.LabelFrame(
+            main_frame,
+            text="Real-time Statistics",
+            padding=10
+        )
         self.right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
 
         self.create_config_panel()
@@ -64,7 +199,9 @@ class QKDApp:
         self.create_statistics_panel()
 
     def create_config_panel(self):
-        """Панель настроек протокола."""
+        """
+        Панель настроек протокола.
+        """
 
         ttk.Label(self.left_frame, text="Protocol:").pack(anchor="w")
         self.protocol_var = tk.StringVar(value="BB84")
@@ -79,19 +216,35 @@ class QKDApp:
 
         ttk.Label(self.left_frame, text="Number of photons / pairs:").pack(anchor="w")
         self.num_var = tk.IntVar(value=1000)
-        ttk.Entry(self.left_frame, textvariable=self.num_var, width=20).pack(anchor="w", pady=5)
+        ttk.Entry(
+            self.left_frame,
+            textvariable=self.num_var,
+            width=20
+        ).pack(anchor="w", pady=5)
 
         ttk.Label(self.left_frame, text="Check percentage:").pack(anchor="w")
         self.check_var = tk.DoubleVar(value=0.10)
-        ttk.Entry(self.left_frame, textvariable=self.check_var, width=20).pack(anchor="w", pady=5)
+        ttk.Entry(
+            self.left_frame,
+            textvariable=self.check_var,
+            width=20
+        ).pack(anchor="w", pady=5)
 
         ttk.Label(self.left_frame, text="Error threshold:").pack(anchor="w")
         self.threshold_var = tk.DoubleVar(value=0.11)
-        ttk.Entry(self.left_frame, textvariable=self.threshold_var, width=20).pack(anchor="w", pady=5)
+        ttk.Entry(
+            self.left_frame,
+            textvariable=self.threshold_var,
+            width=20
+        ).pack(anchor="w", pady=5)
 
         ttk.Label(self.left_frame, text="Noise rate:").pack(anchor="w")
         self.noise_var = tk.DoubleVar(value=0.01)
-        ttk.Entry(self.left_frame, textvariable=self.noise_var, width=20).pack(anchor="w", pady=5)
+        ttk.Entry(
+            self.left_frame,
+            textvariable=self.noise_var,
+            width=20
+        ).pack(anchor="w", pady=5)
 
         self.eve_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
@@ -139,74 +292,211 @@ class QKDApp:
         ttk.Label(
             self.left_frame,
             text="\nBB84: full step-by-step mode\nE91: final statistics + CHSH",
-            foreground="gray"
+            foreground=COLORS["muted"]
         ).pack(anchor="w", pady=10)
 
     def create_visualization_panel(self):
-        """Создаёт canvas и текстовое объяснение шагов."""
+        """
+        Создаёт canvas и текстовое объяснение шагов.
+        """
 
         self.canvas = tk.Canvas(
             self.center_frame,
             width=700,
             height=430,
-            bg="white"
+            bg=COLORS["panel_2"],
+            highlightthickness=1,
+            highlightbackground=COLORS["border"]
         )
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
         self.step_text = tk.Text(
             self.center_frame,
             height=13,
-            wrap=tk.WORD
+            wrap=tk.WORD,
+            bg=COLORS["panel_2"],
+            fg=COLORS["text"],
+            insertbackground=COLORS["text"],
+            relief=tk.FLAT,
+            font=("Consolas", 10)
         )
         self.step_text.pack(fill=tk.X, pady=10)
 
         self.draw_empty_scene()
 
     def create_statistics_panel(self):
-        """Создаёт правую панель статистики."""
+        """
+        Создаёт правую панель статистики.
+        """
 
         self.stats_text = tk.Text(
             self.right_frame,
             width=42,
             height=38,
-            wrap=tk.WORD
+            wrap=tk.WORD,
+            bg=COLORS["panel_2"],
+            fg=COLORS["text"],
+            insertbackground=COLORS["text"],
+            relief=tk.FLAT,
+            font=("Consolas", 10)
         )
         self.stats_text.pack(fill=tk.BOTH, expand=True)
 
         self.update_stats_text("No simulation yet.")
 
     def draw_empty_scene(self, show_hint: bool = True):
-        """Рисует базовую сцену Alice → Eve → Bob."""
+        """
+        Рисует базовую тёмную сцену Alice → Eve → Bob.
+        """
 
         self.canvas.delete("all")
 
-        self.canvas.create_text(100, 55, text="Alice", font=("Arial", 18, "bold"))
-        self.canvas.create_oval(60, 85, 140, 165, fill="#dceeff")
-        self.canvas.create_text(100, 125, text="A", font=("Arial", 20, "bold"))
+        self.canvas.create_text(
+            350,
+            25,
+            text="Quantum Key Distribution Channel",
+            font=("Segoe UI", 16, "bold"),
+            fill=COLORS["accent"]
+        )
 
-        self.canvas.create_text(350, 55, text="Eve", font=("Arial", 18, "bold"))
-        self.canvas.create_oval(310, 85, 390, 165, fill="#ffe0e0")
-        self.canvas.create_text(350, 125, text="E", font=("Arial", 20, "bold"))
+        # Alice
+        self.canvas.create_text(
+            100,
+            65,
+            text="Alice",
+            font=("Segoe UI", 18, "bold"),
+            fill=COLORS["text"]
+        )
+        self.canvas.create_oval(
+            55,
+            95,
+            145,
+            185,
+            fill=COLORS["alice"],
+            outline=COLORS["accent"],
+            width=3
+        )
+        self.canvas.create_text(
+            100,
+            140,
+            text="A",
+            font=("Segoe UI", 24, "bold"),
+            fill="white"
+        )
 
-        self.canvas.create_text(600, 55, text="Bob", font=("Arial", 18, "bold"))
-        self.canvas.create_oval(560, 85, 640, 165, fill="#e3ffe0")
-        self.canvas.create_text(600, 125, text="B", font=("Arial", 20, "bold"))
+        # Eve
+        self.canvas.create_text(
+            350,
+            65,
+            text="Eve",
+            font=("Segoe UI", 18, "bold"),
+            fill=COLORS["text"]
+        )
+        self.canvas.create_oval(
+            305,
+            95,
+            395,
+            185,
+            fill=COLORS["eve"],
+            outline=COLORS["danger"],
+            width=3
+        )
+        self.canvas.create_text(
+            350,
+            140,
+            text="E",
+            font=("Segoe UI", 24, "bold"),
+            fill="white"
+        )
 
-        self.canvas.create_line(145, 125, 305, 125, arrow=tk.LAST, width=3)
-        self.canvas.create_line(395, 125, 555, 125, arrow=tk.LAST, width=3)
+        # Bob
+        self.canvas.create_text(
+            600,
+            65,
+            text="Bob",
+            font=("Segoe UI", 18, "bold"),
+            fill=COLORS["text"]
+        )
+        self.canvas.create_oval(
+            555,
+            95,
+            645,
+            185,
+            fill=COLORS["bob"],
+            outline=COLORS["success"],
+            width=3
+        )
+        self.canvas.create_text(
+            600,
+            140,
+            text="B",
+            font=("Segoe UI", 24, "bold"),
+            fill="white"
+        )
 
-        # Этот текст показываем только на пустом экране,
-        # чтобы он не накладывался на step-by-step текст.
+        # Quantum channels
+        self.canvas.create_line(
+            150,
+            140,
+            300,
+            140,
+            arrow=tk.LAST,
+            width=3,
+            fill=COLORS["accent"]
+        )
+        self.canvas.create_line(
+            400,
+            140,
+            550,
+            140,
+            arrow=tk.LAST,
+            width=3,
+            fill=COLORS["accent"]
+        )
+
+        # Decorative particles
+        for x in range(170, 290, 25):
+            self.canvas.create_oval(
+                x,
+                136,
+                x + 5,
+                141,
+                fill=COLORS["accent_2"],
+                outline=""
+            )
+
+        for x in range(420, 540, 25):
+            self.canvas.create_oval(
+                x,
+                136,
+                x + 5,
+                141,
+                fill=COLORS["accent_2"],
+                outline=""
+            )
+
         if show_hint:
+            self.canvas.create_rectangle(
+                150,
+                230,
+                550,
+                285,
+                outline=COLORS["border"],
+                fill=COLORS["panel"],
+                width=2
+            )
             self.canvas.create_text(
                 350,
-                215,
+                257,
                 text="Run simulation, then use Next Step / Auto Play",
-                font=("Arial", 14)
+                font=("Segoe UI", 13, "bold"),
+                fill=COLORS["muted"]
             )
 
     def run_simulation(self):
-        """Запускает выбранный протокол."""
+        """
+        Запускает выбранный протокол.
+        """
 
         try:
             protocol = self.protocol_var.get()
@@ -251,7 +541,9 @@ class QKDApp:
             messagebox.showerror("Simulation Error", str(error))
 
     def update_statistics_from_result(self):
-        """Обновляет панель статистики по результату."""
+        """
+        Обновляет панель статистики по результату.
+        """
 
         if not self.current_result:
             return
@@ -284,7 +576,10 @@ class QKDApp:
 
         if "keys_match_before_amplification" in result:
             lines.append("")
-            lines.append(f"Keys before amplification match: {result.get('keys_match_before_amplification')}")
+            lines.append(
+                f"Keys before amplification match: "
+                f"{result.get('keys_match_before_amplification')}"
+            )
 
         if "final_keys_match" in result:
             lines.append(f"Final keys match: {result.get('final_keys_match')}")
@@ -304,13 +599,17 @@ class QKDApp:
         self.update_stats_text("\n".join(lines))
 
     def update_stats_text(self, text):
-        """Обновляет текст статистики."""
+        """
+        Обновляет текст статистики.
+        """
 
         self.stats_text.delete("1.0", tk.END)
         self.stats_text.insert(tk.END, text)
 
     def draw_summary_scene(self):
-        """Рисует итоговую сцену после запуска."""
+        """
+        Рисует итоговую сцену после запуска.
+        """
 
         self.draw_empty_scene()
 
@@ -323,33 +622,41 @@ class QKDApp:
         if result.get("eve_enabled"):
             self.canvas.create_text(
                 350,
-                185,
+                205,
                 text="Eve is active: intercept-resend attack",
-                font=("Arial", 13, "bold"),
-                fill="red"
+                font=("Segoe UI", 13, "bold"),
+                fill=COLORS["danger"]
             )
         else:
             self.canvas.create_text(
                 350,
-                185,
+                205,
                 text="No Eve: normal quantum channel",
-                font=("Arial", 13, "bold"),
-                fill="green"
+                font=("Segoe UI", 13, "bold"),
+                fill=COLORS["success"]
             )
 
         if result.get("success"):
-            color = "green"
+            color = COLORS["success"]
             message = "SECURE KEY ESTABLISHED"
         else:
-            color = "red"
+            color = COLORS["danger"]
             message = "PROTOCOL ABORTED / INSECURE"
 
-        self.canvas.create_rectangle(190, 240, 510, 300, outline=color, width=3)
+        self.canvas.create_rectangle(
+            190,
+            240,
+            510,
+            300,
+            outline=color,
+            fill=COLORS["panel"],
+            width=3
+        )
         self.canvas.create_text(
             350,
             270,
             text=f"{message}\nStatus: {status}",
-            font=("Arial", 14, "bold"),
+            font=("Segoe UI", 14, "bold"),
             fill=color
         )
 
@@ -380,11 +687,12 @@ class QKDApp:
             350,
             335,
             text="Key Evolution",
-            font=("Arial", 14, "bold")
+            font=("Segoe UI", 14, "bold"),
+            fill=COLORS["accent"]
         )
 
         start_x = 110
-        bar_y = 375
+        bar_y = 390
         max_height = 70
         bar_width = 90
         gap = 60
@@ -396,12 +704,36 @@ class QKDApp:
             y1 = bar_y - height
             y2 = bar_y
 
-            self.canvas.create_rectangle(x1, y1, x2, y2, fill="#cfe8ff", outline="black")
-            self.canvas.create_text((x1 + x2) // 2, y1 - 12, text=str(value), font=("Arial", 10))
-            self.canvas.create_text((x1 + x2) // 2, y2 + 15, text=label, font=("Arial", 10))
+            self.canvas.create_rectangle(
+                x1,
+                y1,
+                x2,
+                y2,
+                fill=COLORS["accent"],
+                outline=COLORS["accent_2"],
+                width=2
+            )
+
+            self.canvas.create_text(
+                (x1 + x2) // 2,
+                y1 - 12,
+                text=str(value),
+                font=("Consolas", 10, "bold"),
+                fill=COLORS["text"]
+            )
+
+            self.canvas.create_text(
+                (x1 + x2) // 2,
+                y2 + 17,
+                text=label,
+                font=("Segoe UI", 10),
+                fill=COLORS["muted"]
+            )
 
     def show_summary_text(self):
-        """Показывает краткое объяснение после запуска."""
+        """
+        Показывает краткое объяснение после запуска.
+        """
 
         self.step_text.delete("1.0", tk.END)
 
@@ -431,7 +763,9 @@ class QKDApp:
         self.step_text.insert(tk.END, "".join(text))
 
     def next_step(self):
-        """Показывает следующий шаг передачи фотона."""
+        """
+        Показывает следующий шаг передачи фотона.
+        """
 
         if not self.current_result:
             messagebox.showinfo("Info", "Run simulation first.")
@@ -459,7 +793,9 @@ class QKDApp:
         self.step_index += 1
 
     def start_auto_play(self):
-        """Запускает автоматический step-by-step режим."""
+        """
+        Запускает автоматический step-by-step режим.
+        """
 
         if not self.current_result:
             messagebox.showinfo("Info", "Run simulation first.")
@@ -473,7 +809,9 @@ class QKDApp:
         self.auto_play_step()
 
     def auto_play_step(self):
-        """Один шаг автоматической анимации."""
+        """
+        Один шаг автоматической анимации.
+        """
 
         if not self.auto_play_active:
             return
@@ -486,14 +824,18 @@ class QKDApp:
         self.root.after(self.animation_speed_ms, self.auto_play_step)
 
     def pause_auto_play(self):
-        """Ставит Auto Play на паузу."""
+        """
+        Ставит Auto Play на паузу.
+        """
 
         self.auto_play_active = False
 
     def draw_step(self, step: dict):
-        """Рисует один шаг передачи фотона."""
+        """
+        Рисует один шаг передачи фотона.
+        """
 
-        self.draw_empty_scene()
+        self.draw_empty_scene(show_hint=False)
 
         alice_bit = step["alice_bit"]
         alice_basis = step["alice_basis"]
@@ -504,65 +846,94 @@ class QKDApp:
 
         symbol = POLARIZATION_SYMBOLS.get(alice_polarization, "?")
 
-        # Визуальный фотон
         photon_x = 350
-        self.canvas.create_oval(photon_x - 25, 100, photon_x + 25, 150, fill="#fff3b0", outline="black", width=2)
-        self.canvas.create_text(photon_x, 125, text=symbol, font=("Arial", 22, "bold"))
+
+        self.canvas.create_oval(
+            photon_x - 28,
+            112,
+            photon_x + 28,
+            168,
+            fill=COLORS["photon"],
+            outline=COLORS["accent_2"],
+            width=3
+        )
+
+        self.canvas.create_text(
+            photon_x,
+            140,
+            text=symbol,
+            font=("Segoe UI", 24, "bold"),
+            fill="#020617"
+        )
 
         self.canvas.create_text(
             100,
-            210,
+            225,
             text=f"bit={alice_bit}\nbasis={alice_basis}\npol={alice_polarization}° {symbol}",
-            font=("Arial", 12)
+            font=("Consolas", 11, "bold"),
+            fill=COLORS["text"]
         )
 
         self.canvas.create_text(
             600,
-            210,
+            225,
             text=f"basis={bob_basis}\nresult={bob_result}",
-            font=("Arial", 12)
+            font=("Consolas", 11, "bold"),
+            fill=COLORS["text"]
         )
 
         if self.current_result.get("eve_enabled"):
             eve_text = "Eve intercepts\nand resends"
-            eve_color = "red"
+            eve_color = COLORS["danger"]
         else:
             eve_text = "No Eve"
-            eve_color = "green"
+            eve_color = COLORS["success"]
 
         self.canvas.create_text(
             350,
-            210,
+            225,
             text=eve_text,
-            font=("Arial", 12, "bold"),
+            font=("Segoe UI", 12, "bold"),
             fill=eve_color
         )
 
         if basis_matched:
             result_text = "Bases matched → deterministic result"
-            result_color = "green"
+            result_color = COLORS["success"]
         else:
             result_text = "Bases different → random result"
-            result_color = "orange"
+            result_color = COLORS["warning"]
 
-        self.canvas.create_rectangle(160, 270, 540, 330, outline=result_color, width=3)
+        self.canvas.create_rectangle(
+            160,
+            285,
+            540,
+            345,
+            outline=result_color,
+            fill=COLORS["panel"],
+            width=3
+        )
+
         self.canvas.create_text(
             350,
-            300,
+            315,
             text=result_text,
-            font=("Arial", 14, "bold"),
+            font=("Segoe UI", 14, "bold"),
             fill=result_color
         )
 
         self.canvas.create_text(
             350,
-            365,
+            385,
             text=f"Step {self.step_index + 1}/{len(self.transmission_log)}",
-            font=("Arial", 12)
+            font=("Segoe UI", 12),
+            fill=COLORS["muted"]
         )
 
     def show_step_text(self, step: dict):
-        """Текстовое объяснение одного шага."""
+        """
+        Текстовое объяснение одного шага.
+        """
 
         self.step_text.delete("1.0", tk.END)
 
@@ -589,7 +960,9 @@ class QKDApp:
         self.step_text.insert(tk.END, "".join(text))
 
     def reset_step(self):
-        """Сбрасывает step-by-step режим."""
+        """
+        Сбрасывает step-by-step режим.
+        """
 
         self.pause_auto_play()
         self.step_index = 0
@@ -597,7 +970,9 @@ class QKDApp:
         self.show_summary_text()
 
     def clear_all(self):
-        """Очищает интерфейс."""
+        """
+        Очищает интерфейс.
+        """
 
         self.pause_auto_play()
         self.current_result = None
