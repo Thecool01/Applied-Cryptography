@@ -9,35 +9,43 @@ except ImportError:
     run_e91 = None
 
 
+POLARIZATION_SYMBOLS = {
+    0: "↔",
+    45: "⤢",
+    90: "↕",
+    135: "⤡",
+}
+
+
 class QKDApp:
     """
     GUI приложение для демонстрации QKD протоколов:
     BB84 и E91.
 
-    Здесь реализованы:
+    Реализовано:
     - Configuration panel
     - Visualization panel
     - Step-by-step mode
+    - Auto Play / Pause
+    - Key evolution visualization
     - Real-time statistics display
     """
 
     def __init__(self, root):
         self.root = root
         self.root.title("SIS4 QKD Simulator: BB84 / E91")
-        self.root.geometry("1200x750")
+        self.root.geometry("1250x780")
 
         self.current_result = None
         self.step_index = 0
         self.transmission_log = []
+        self.auto_play_active = False
+        self.animation_speed_ms = 900
 
         self.create_layout()
 
     def create_layout(self):
-        """
-        Создаёт основной интерфейс:
-        слева настройки, по центру визуализация,
-        справа статистика.
-        """
+        """Создаёт основной интерфейс."""
 
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -56,21 +64,18 @@ class QKDApp:
         self.create_statistics_panel()
 
     def create_config_panel(self):
-        """
-        Панель настроек протокола.
-        """
+        """Панель настроек протокола."""
 
         ttk.Label(self.left_frame, text="Protocol:").pack(anchor="w")
         self.protocol_var = tk.StringVar(value="BB84")
 
-        protocol_box = ttk.Combobox(
+        ttk.Combobox(
             self.left_frame,
             textvariable=self.protocol_var,
             values=["BB84", "E91"],
             state="readonly",
             width=18
-        )
-        protocol_box.pack(anchor="w", pady=5)
+        ).pack(anchor="w", pady=5)
 
         ttk.Label(self.left_frame, text="Number of photons / pairs:").pack(anchor="w")
         self.num_var = tk.IntVar(value=1000)
@@ -109,6 +114,18 @@ class QKDApp:
 
         ttk.Button(
             self.left_frame,
+            text="Auto Play",
+            command=self.start_auto_play
+        ).pack(fill=tk.X, pady=5)
+
+        ttk.Button(
+            self.left_frame,
+            text="Pause",
+            command=self.pause_auto_play
+        ).pack(fill=tk.X, pady=5)
+
+        ttk.Button(
+            self.left_frame,
             text="Reset Step",
             command=self.reset_step
         ).pack(fill=tk.X, pady=5)
@@ -121,27 +138,24 @@ class QKDApp:
 
         ttk.Label(
             self.left_frame,
-            text="\nTip:\nUse BB84 for full step-by-step.\nE91 shows final statistics.",
+            text="\nBB84: full step-by-step mode\nE91: final statistics + CHSH",
             foreground="gray"
         ).pack(anchor="w", pady=10)
 
     def create_visualization_panel(self):
-        """
-        Центральная визуализация:
-        Alice → Eve → Bob
-        """
+        """Создаёт canvas и текстовое объяснение шагов."""
 
         self.canvas = tk.Canvas(
             self.center_frame,
-            width=650,
-            height=380,
+            width=700,
+            height=430,
             bg="white"
         )
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
         self.step_text = tk.Text(
             self.center_frame,
-            height=12,
+            height=13,
             wrap=tk.WORD
         )
         self.step_text.pack(fill=tk.X, pady=10)
@@ -149,53 +163,50 @@ class QKDApp:
         self.draw_empty_scene()
 
     def create_statistics_panel(self):
-        """
-        Правая панель статистики.
-        """
+        """Создаёт правую панель статистики."""
 
         self.stats_text = tk.Text(
             self.right_frame,
-            width=38,
-            height=35,
+            width=42,
+            height=38,
             wrap=tk.WORD
         )
         self.stats_text.pack(fill=tk.BOTH, expand=True)
 
         self.update_stats_text("No simulation yet.")
 
-    def draw_empty_scene(self):
-        """
-        Рисует пустую сцену Alice → Eve → Bob.
-        """
+    def draw_empty_scene(self, show_hint: bool = True):
+        """Рисует базовую сцену Alice → Eve → Bob."""
 
         self.canvas.delete("all")
 
-        self.canvas.create_text(100, 80, text="Alice", font=("Arial", 18, "bold"))
-        self.canvas.create_oval(60, 110, 140, 190, fill="#dceeff")
-        self.canvas.create_text(100, 150, text="A", font=("Arial", 20, "bold"))
+        self.canvas.create_text(100, 55, text="Alice", font=("Arial", 18, "bold"))
+        self.canvas.create_oval(60, 85, 140, 165, fill="#dceeff")
+        self.canvas.create_text(100, 125, text="A", font=("Arial", 20, "bold"))
 
-        self.canvas.create_text(325, 80, text="Eve", font=("Arial", 18, "bold"))
-        self.canvas.create_oval(285, 110, 365, 190, fill="#ffe0e0")
-        self.canvas.create_text(325, 150, text="E", font=("Arial", 20, "bold"))
+        self.canvas.create_text(350, 55, text="Eve", font=("Arial", 18, "bold"))
+        self.canvas.create_oval(310, 85, 390, 165, fill="#ffe0e0")
+        self.canvas.create_text(350, 125, text="E", font=("Arial", 20, "bold"))
 
-        self.canvas.create_text(550, 80, text="Bob", font=("Arial", 18, "bold"))
-        self.canvas.create_oval(510, 110, 590, 190, fill="#e3ffe0")
-        self.canvas.create_text(550, 150, text="B", font=("Arial", 20, "bold"))
+        self.canvas.create_text(600, 55, text="Bob", font=("Arial", 18, "bold"))
+        self.canvas.create_oval(560, 85, 640, 165, fill="#e3ffe0")
+        self.canvas.create_text(600, 125, text="B", font=("Arial", 20, "bold"))
 
-        self.canvas.create_line(145, 150, 280, 150, arrow=tk.LAST, width=3)
-        self.canvas.create_line(370, 150, 505, 150, arrow=tk.LAST, width=3)
+        self.canvas.create_line(145, 125, 305, 125, arrow=tk.LAST, width=3)
+        self.canvas.create_line(395, 125, 555, 125, arrow=tk.LAST, width=3)
 
-        self.canvas.create_text(
-            325,
-            270,
-            text="Run simulation, then use Next Step",
-            font=("Arial", 14)
-        )
+        # Этот текст показываем только на пустом экране,
+        # чтобы он не накладывался на step-by-step текст.
+        if show_hint:
+            self.canvas.create_text(
+                350,
+                215,
+                text="Run simulation, then use Next Step / Auto Play",
+                font=("Arial", 14)
+            )
 
     def run_simulation(self):
-        """
-        Запускает выбранный протокол.
-        """
+        """Запускает выбранный протокол."""
 
         try:
             protocol = self.protocol_var.get()
@@ -205,6 +216,8 @@ class QKDApp:
             eve_enabled = self.eve_var.get()
             noise_rate = self.noise_var.get()
 
+            self.pause_auto_play()
+
             if protocol == "BB84":
                 self.current_result = run_bb84(
                     num_photons=num,
@@ -213,7 +226,6 @@ class QKDApp:
                     eve_enabled=eve_enabled,
                     noise_rate=noise_rate
                 )
-
                 self.transmission_log = self.current_result.get("transmission_log", [])
 
             elif protocol == "E91":
@@ -228,7 +240,6 @@ class QKDApp:
                     eve_enabled=eve_enabled,
                     noise_rate=noise_rate
                 )
-
                 self.transmission_log = []
 
             self.step_index = 0
@@ -240,9 +251,7 @@ class QKDApp:
             messagebox.showerror("Simulation Error", str(error))
 
     def update_statistics_from_result(self):
-        """
-        Обновляет панель статистики по результату.
-        """
+        """Обновляет панель статистики по результату."""
 
         if not self.current_result:
             return
@@ -275,12 +284,10 @@ class QKDApp:
 
         if "keys_match_before_amplification" in result:
             lines.append("")
-            lines.append(f"Keys before amplification match:")
-            lines.append(str(result.get("keys_match_before_amplification")))
+            lines.append(f"Keys before amplification match: {result.get('keys_match_before_amplification')}")
 
         if "final_keys_match" in result:
-            lines.append(f"Final keys match:")
-            lines.append(str(result.get("final_keys_match")))
+            lines.append(f"Final keys match: {result.get('final_keys_match')}")
 
         if result.get("final_key"):
             lines.append("")
@@ -297,17 +304,13 @@ class QKDApp:
         self.update_stats_text("\n".join(lines))
 
     def update_stats_text(self, text):
-        """
-        Обновляет текст статистики.
-        """
+        """Обновляет текст статистики."""
 
         self.stats_text.delete("1.0", tk.END)
         self.stats_text.insert(tk.END, text)
 
     def draw_summary_scene(self):
-        """
-        Рисует итоговую сцену после запуска.
-        """
+        """Рисует итоговую сцену после запуска."""
 
         self.draw_empty_scene()
 
@@ -319,16 +322,16 @@ class QKDApp:
 
         if result.get("eve_enabled"):
             self.canvas.create_text(
-                325,
-                220,
+                350,
+                185,
                 text="Eve is active: intercept-resend attack",
                 font=("Arial", 13, "bold"),
                 fill="red"
             )
         else:
             self.canvas.create_text(
-                325,
-                220,
+                350,
+                185,
                 text="No Eve: normal quantum channel",
                 font=("Arial", 13, "bold"),
                 fill="green"
@@ -341,19 +344,64 @@ class QKDApp:
             color = "red"
             message = "PROTOCOL ABORTED / INSECURE"
 
-        self.canvas.create_rectangle(170, 290, 480, 350, outline=color, width=3)
+        self.canvas.create_rectangle(190, 240, 510, 300, outline=color, width=3)
         self.canvas.create_text(
-            325,
-            320,
+            350,
+            270,
             text=f"{message}\nStatus: {status}",
             font=("Arial", 14, "bold"),
             fill=color
         )
 
+        self.draw_key_evolution(result)
+
+    def draw_key_evolution(self, result: dict):
+        """
+        Рисует key evolution:
+        initial → sifted → after checking → final.
+        """
+
+        initial = result.get("initial_count", 0)
+        sifted = result.get("sifted_key_length", 0)
+        checked = result.get("checked_bits", 0)
+        after_checking = max(0, sifted - checked)
+        final_key = result.get("final_key_length", 0)
+
+        values = [
+            ("Initial", initial),
+            ("Sifted", sifted),
+            ("After check", after_checking),
+            ("Final", final_key),
+        ]
+
+        max_value = max([value for _, value in values] + [1])
+
+        self.canvas.create_text(
+            350,
+            335,
+            text="Key Evolution",
+            font=("Arial", 14, "bold")
+        )
+
+        start_x = 110
+        bar_y = 375
+        max_height = 70
+        bar_width = 90
+        gap = 60
+
+        for index, (label, value) in enumerate(values):
+            x1 = start_x + index * (bar_width + gap)
+            x2 = x1 + bar_width
+            height = int((value / max_value) * max_height)
+            y1 = bar_y - height
+            y2 = bar_y
+
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill="#cfe8ff", outline="black")
+            self.canvas.create_text((x1 + x2) // 2, y1 - 12, text=str(value), font=("Arial", 10))
+            self.canvas.create_text((x1 + x2) // 2, y2 + 15, text=label, font=("Arial", 10))
+
     def show_summary_text(self):
-        """
-        Показывает краткое текстовое объяснение после запуска.
-        """
+        """Показывает краткое объяснение после запуска."""
 
         self.step_text.delete("1.0", tk.END)
 
@@ -375,7 +423,7 @@ class QKDApp:
             text.append("4. Matching bases formed the sifted key.\n")
             text.append("5. Error checking estimated possible eavesdropping.\n")
             text.append("6. Privacy amplification produced final key.\n\n")
-            text.append("Use Next Step to inspect individual photon transmissions.\n")
+            text.append("Use Next Step or Auto Play to inspect photon transmissions.\n")
         else:
             text.append("E91 bonus simulation completed.\n")
             text.append("E91 uses entangled pairs and CHSH/Bell correlation checking.\n")
@@ -383,10 +431,7 @@ class QKDApp:
         self.step_text.insert(tk.END, "".join(text))
 
     def next_step(self):
-        """
-        Показывает следующий шаг передачи фотона.
-        Работает для BB84, потому что run_bb84 возвращает transmission_log.
-        """
+        """Показывает следующий шаг передачи фотона."""
 
         if not self.current_result:
             messagebox.showinfo("Info", "Run simulation first.")
@@ -404,19 +449,49 @@ class QKDApp:
             return
 
         if self.step_index >= len(self.transmission_log):
+            self.pause_auto_play()
             messagebox.showinfo("Info", "No more saved steps. Only first 50 are stored.")
             return
 
         step = self.transmission_log[self.step_index]
         self.draw_step(step)
         self.show_step_text(step)
-
         self.step_index += 1
 
+    def start_auto_play(self):
+        """Запускает автоматический step-by-step режим."""
+
+        if not self.current_result:
+            messagebox.showinfo("Info", "Run simulation first.")
+            return
+
+        if self.current_result.get("protocol") != "BB84":
+            messagebox.showinfo("Info", "Auto Play is implemented for BB84.")
+            return
+
+        self.auto_play_active = True
+        self.auto_play_step()
+
+    def auto_play_step(self):
+        """Один шаг автоматической анимации."""
+
+        if not self.auto_play_active:
+            return
+
+        if self.step_index >= len(self.transmission_log):
+            self.auto_play_active = False
+            return
+
+        self.next_step()
+        self.root.after(self.animation_speed_ms, self.auto_play_step)
+
+    def pause_auto_play(self):
+        """Ставит Auto Play на паузу."""
+
+        self.auto_play_active = False
+
     def draw_step(self, step: dict):
-        """
-        Рисует один шаг передачи фотона.
-        """
+        """Рисует один шаг передачи фотона."""
 
         self.draw_empty_scene()
 
@@ -427,22 +502,23 @@ class QKDApp:
         bob_result = step["bob_result"]
         basis_matched = step["basis_matched"]
 
-        # Рисуем фотон как маленький круг
-        self.canvas.create_oval(300, 135, 350, 185, fill="#fff3b0", outline="black", width=2)
-        self.canvas.create_text(325, 160, text="γ", font=("Arial", 22, "bold"))
+        symbol = POLARIZATION_SYMBOLS.get(alice_polarization, "?")
 
-        # Alice details
+        # Визуальный фотон
+        photon_x = 350
+        self.canvas.create_oval(photon_x - 25, 100, photon_x + 25, 150, fill="#fff3b0", outline="black", width=2)
+        self.canvas.create_text(photon_x, 125, text=symbol, font=("Arial", 22, "bold"))
+
         self.canvas.create_text(
             100,
-            230,
-            text=f"bit={alice_bit}\nbasis={alice_basis}\npol={alice_polarization}°",
+            210,
+            text=f"bit={alice_bit}\nbasis={alice_basis}\npol={alice_polarization}° {symbol}",
             font=("Arial", 12)
         )
 
-        # Bob details
         self.canvas.create_text(
-            550,
-            230,
+            600,
+            210,
             text=f"basis={bob_basis}\nresult={bob_result}",
             font=("Arial", 12)
         )
@@ -455,8 +531,8 @@ class QKDApp:
             eve_color = "green"
 
         self.canvas.create_text(
-            325,
-            230,
+            350,
+            210,
             text=eve_text,
             font=("Arial", 12, "bold"),
             fill=eve_color
@@ -469,29 +545,39 @@ class QKDApp:
             result_text = "Bases different → random result"
             result_color = "orange"
 
-        self.canvas.create_rectangle(150, 300, 500, 360, outline=result_color, width=3)
+        self.canvas.create_rectangle(160, 270, 540, 330, outline=result_color, width=3)
         self.canvas.create_text(
-            325,
-            330,
+            350,
+            300,
             text=result_text,
             font=("Arial", 14, "bold"),
             fill=result_color
         )
 
+        self.canvas.create_text(
+            350,
+            365,
+            text=f"Step {self.step_index + 1}/{len(self.transmission_log)}",
+            font=("Arial", 12)
+        )
+
     def show_step_text(self, step: dict):
-        """
-        Текстовое объяснение одного шага.
-        """
+        """Текстовое объяснение одного шага."""
 
         self.step_text.delete("1.0", tk.END)
+
+        symbol = POLARIZATION_SYMBOLS.get(step["alice_polarization"], "?")
 
         text = []
         text.append(f"Step #{step['index'] + 1}\n\n")
         text.append(f"Alice bit: {step['alice_bit']}\n")
         text.append(f"Alice basis: {step['alice_basis']}\n")
-        text.append(f"Alice polarization: {step['alice_polarization']}°\n\n")
+        text.append(f"Alice polarization: {step['alice_polarization']}° {symbol}\n\n")
         text.append(f"Bob basis: {step['bob_basis']}\n")
         text.append(f"Bob measured result: {step['bob_result']}\n\n")
+
+        if self.current_result.get("eve_enabled"):
+            text.append("Eve is enabled, so the photon may be disturbed before Bob measures it.\n\n")
 
         if step["basis_matched"]:
             text.append("Explanation:\n")
@@ -503,19 +589,17 @@ class QKDApp:
         self.step_text.insert(tk.END, "".join(text))
 
     def reset_step(self):
-        """
-        Сбрасывает step-by-step режим.
-        """
+        """Сбрасывает step-by-step режим."""
 
+        self.pause_auto_play()
         self.step_index = 0
         self.draw_summary_scene()
         self.show_summary_text()
 
     def clear_all(self):
-        """
-        Очищает интерфейс.
-        """
+        """Очищает интерфейс."""
 
+        self.pause_auto_play()
         self.current_result = None
         self.step_index = 0
         self.transmission_log = []
@@ -527,7 +611,7 @@ class QKDApp:
 
 def main():
     root = tk.Tk()
-    app = QKDApp(root)
+    QKDApp(root)
     root.mainloop()
 
 
